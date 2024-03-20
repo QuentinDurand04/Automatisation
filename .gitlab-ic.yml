@@ -1,0 +1,32 @@
+.buildAndDeploy:
+  variables:
+    MSBUILD_PATH: 'C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\msbuild.exe'
+  tags:
+    - windows
+  script:
+    - '& "$env:MSBUILD_PATH" /p:RestorePackagesConfig=true /p:RestoreConfigFile="nuget.config" /v:m -t:restore'
+    - '& "$env:MSBUILD_PATH" $env:BATCH_PROJECT_PATH /p:Configuration=$env:MSBUILD_CONFIGURATION /v:m /restore'
+    - '& "$env:MSBUILD_PATH" $env:BATCH_PROJECT_PATH /p:Configuration=$env:MSBUILD_CONFIGURATION /v:m /t:Build'
+    - if (Test-Path ".script-ci.yml") { 
+        $script = Get-Content ".script-ci.yml" -Raw;
+        Invoke-Expression $script
+      } else { 
+        xcopy /y /e /h /c /i "$env:BATCH_PROJECT_PATH\bin\$env:MSBUILD_CONFIGURATION\*" "$env:CI_BACKUP_FOLDER\$(Get-Date -Format 'yyyy-MM-dd') $env:CI_PROJECT_NAME $env:CI_PIPELINE_ID\Files\$env:MSBUILD_CONFIGURATION"; 
+        xcopy /y /e /h /c /i "$env:BATCH_PROJECT_PATH\BDD\*" "$env:CI_BACKUP_FOLDER\$(Get-Date -Format 'yyyy-MM-dd') $env:CI_PROJECT_NAME $env:CI_PIPELINE_ID\BDD" 
+      }
+  after_script:
+    #- if ($CI_JOB_STATUS -eq "failed"){
+         # Permet de mettre les logs dans un fichier prévu à cette effet, les nouvelles lignes se mettent au dessus des précédentes
+        - $logContent = Get-Content $env:CI_PIPELINES_LOG_FILE -Raw
+        - $newLogEntry = "$(Get-Date -Format 'dd/MM/yyyy HH:mm:ss'); $GITLAB_USER_LOGIN; $CI_PROJECT_NAME; $CI_COMMIT_REF_NAME; $CI_JOB_STATUS; $CI_PIPELINE_ID; $CI_JOB_NAME`n"
+        - $newContent = $newLogEntry + $logContent
+        - Set-Content -Path $env:CI_PIPELINES_LOG_FILE -Value $newContent
+
+      #}
+    #- if ($CI_JOB_STATUS -eq "success" -and $CI_JOB_NAME -eq "Batch:Release"){
+     #   echo "$(Get-Date -Format 'dd/MM/yyyy HH:mm:ss'); $GITLAB_USER_LOGIN; $CI_PROJECT_NAME; $CI_COMMIT_REF_NAME; $CI_JOB_STATUS; $CI_PIPELINE_ID" >> "$env:CI_PIPELINES_LOG_FILE"
+      #}
+  when: manual
+
+
+
